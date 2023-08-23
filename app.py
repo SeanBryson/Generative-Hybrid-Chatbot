@@ -1,7 +1,7 @@
 import openai
 import gradio as gr
-openai.organization = "org-8wlfTWunUy0WNIEfSczzf8Kv"
-file = open('Building a Chatbot.txt')
+openai.organization = "org-MYzdbZoWTu1PpVARD32T829L"
+file = open('D:\Python_Workspace\ChatbotV2\Building a Chatbot.txt')
 openai.api_key = file.readline()
 #print(openai.Model.list())
 
