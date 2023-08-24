@@ -32,7 +32,7 @@ def chatbot(input):
         if input:
             messages.append({"role": "user", "content": input})
             chat = openai.ChatCompletion.create(
-                model="gpt-4", messages=messages
+                model="gpt-3.5-turbo", messages=messages
             )
             reply = chat.choices[0].message.content
             messages.append({"role": "assistant", "content": reply})

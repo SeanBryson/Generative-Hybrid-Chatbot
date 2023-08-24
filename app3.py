@@ -1,5 +1,5 @@
 # iTunes - Music Version 
-# only works with prompts like "find me a song"
+# only works with prompts like "find me a song" or "radiohead song"
 import openai
 import gradio as gr
 import requests
@@ -32,7 +32,7 @@ def chatbot(input):
         if input:
             messages.append({"role": "user", "content": input})
             chat = openai.ChatCompletion.create(
-                model="gpt-4", messages=messages
+                model="gpt-3.5-turbo", messages=messages
             )
             reply = chat.choices[0].message.content
             messages.append({"role": "assistant", "content": reply})
