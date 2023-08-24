@@ -3,7 +3,7 @@ import gradio as gr
 
 # Set up OpenAI credentials
 openai.organization = "org-MYzdbZoWTu1PpVARD32T829L"
-with open('D:\Python_Workspace\ChatbotV2\Building a Chatbot.txt', 'r') as file:
+with open('D:\Python_Workspace\Building a Chatbot.txt', 'r') as file:
     openai.api_key = file.readline().strip()
 
 messages = [

@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 ARXIV_ENDPOINT = "http://export.arxiv.org/api/query?search_query=all:{}&start=0&max_results=1"
 openai.organization = "org-MYzdbZoWTu1PpVARD32T829L"
-file = open('D:\Python_Workspace\ChatbotV2\Building a Chatbot.txt')
+file = open('D:\Python_Workspace\Building a Chatbot.txt')
 openai.api_key = file.readline()
 #print(openai.Model.list())
 
