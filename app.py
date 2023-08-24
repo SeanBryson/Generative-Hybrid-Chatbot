@@ -1,9 +1,7 @@
 import openai
 import gradio as gr
 import requests
-BEST_BUY_API_KEY = "YOUR_BEST_BUY_API_KEY"
-# BEST_BUY_ENDPOINT = "https://api.bestbuy.com/v1/products(search={})?format=json&apiKey={}"
-BEST_BUY_ENDPOINT = "https://api.bestbuy.com/v1/products(search={})?format=json"
+ARXIV_ENDPOINT = "http://export.arxiv.org/api/query?search_query=all:{}&start=0&max_results=1"
 openai.organization = "org-MYzdbZoWTu1PpVARD32T829L"
 file = open('D:\Python_Workspace\ChatbotV2\Building a Chatbot.txt')
 openai.api_key = file.readline()
@@ -13,21 +11,29 @@ messages = [
     {"role": "system", "content": "You are a helpful and kind AI Assistant."},
 ]
 
-
-
 def chatbot(input):
-    if "product" in input or "buy" in input:  # Simple keyword detection for product-related queries
-        search_term = input.split(" ")[-1]  # Assuming the last word is the product name for simplicity
-        response = requests.get(BEST_BUY_ENDPOINT.format(search_term, BEST_BUY_API_KEY))
-        data = response.json()
-        if data["total"] > 0:
-            product = data["products"][0]  # Taking the first product for simplicity
-            reply = f"I found a product for you: {product['name']} priced at ${product['salePrice']}."
+    if "paper" in input or "research" in input or "arxiv" in input:
+        search_term = input.replace("paper", "").replace("research", "").replace("arxiv", "").strip()
+        response = requests.get(ARXIV_ENDPOINT.format(search_term))
+        data = response.text  # The response is in Atom format, which is an XML-like format
+
+        # For simplicity, we'll just check if we found an entry and extract the title
+        if "<entry>" in data:
+            start_idx = data.find("<title>") + len("<title>")
+            end_idx = data.find("</title>")
+            title = data[start_idx:end_idx]
+            reply = f"I found a paper for you: {title}."
         else:
-            reply = "Sorry, I couldn't find any products matching your query."
+            reply = "Sorry, I couldn't find any papers matching your query."
     else:
-        # Your existing OpenAI chatbot code
-        ...
+        if input:
+            messages.append({"role": "user", "content": input})
+            chat = openai.ChatCompletion.create(
+                model="gpt-4", messages=messages
+            )
+            reply = chat.choices[0].message.content
+            messages.append({"role": "assistant", "content": reply})
+            return reply
 
     return reply
 
