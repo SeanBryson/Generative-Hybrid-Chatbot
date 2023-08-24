@@ -1,6 +1,8 @@
 import openai
 import gradio as gr
 import requests
+import xml.etree.ElementTree as ET
+
 ARXIV_ENDPOINT = "http://export.arxiv.org/api/query?search_query=all:{}&start=0&max_results=1"
 openai.organization = "org-MYzdbZoWTu1PpVARD32T829L"
 file = open('D:\Python_Workspace\ChatbotV2\Building a Chatbot.txt')
@@ -15,13 +17,13 @@ def chatbot(input):
     if "paper" in input or "research" in input or "arxiv" in input:
         search_term = input.replace("paper", "").replace("research", "").replace("arxiv", "").strip()
         response = requests.get(ARXIV_ENDPOINT.format(search_term))
-        data = response.text  # The response is in Atom format, which is an XML-like format
+        data = response.text
 
-        # For simplicity, we'll just check if we found an entry and extract the title
-        if "<entry>" in data:
-            start_idx = data.find("<title>") + len("<title>")
-            end_idx = data.find("</title>")
-            title = data[start_idx:end_idx]
+        # Parse the XML response using ElementTree
+        root = ET.fromstring(data)
+        entry = root.find('{http://www.w3.org/2005/Atom}entry')
+        if entry is not None:
+            title = entry.find('{http://www.w3.org/2005/Atom}title').text
             reply = f"I found a paper for you: {title}."
         else:
             reply = "Sorry, I couldn't find any papers matching your query."
