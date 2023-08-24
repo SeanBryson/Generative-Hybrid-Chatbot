@@ -2,7 +2,8 @@ import openai
 import gradio as gr
 import requests
 BEST_BUY_API_KEY = "YOUR_BEST_BUY_API_KEY"
-BEST_BUY_ENDPOINT = "https://api.bestbuy.com/v1/products(search={})?format=json&apiKey={}"
+# BEST_BUY_ENDPOINT = "https://api.bestbuy.com/v1/products(search={})?format=json&apiKey={}"
+BEST_BUY_ENDPOINT = "https://api.bestbuy.com/v1/products(search={})?format=json"
 openai.organization = "org-MYzdbZoWTu1PpVARD32T829L"
 file = open('D:\Python_Workspace\ChatbotV2\Building a Chatbot.txt')
 openai.api_key = file.readline()
