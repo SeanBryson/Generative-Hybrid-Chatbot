@@ -1,3 +1,4 @@
+import string
 import openai
 import gradio as gr
 import requests
@@ -12,11 +13,13 @@ openai.api_key = file.readline()
 messages = [
     {"role": "system", "content": "You are a music suggestion bot with API access to iTunes. Please return at least one song"},
 ]
-
 def extract_artist_name_and_type(input):
+    # Remove punctuation from the input
+    input = ''.join(ch for ch in input if ch not in string.punctuation)
+
     # List of common words to remove
     remove_words = ["find", "me", "a", "get", "play", "song", "by", "album", "artist", "track", "music", "latest", "top", 
-                    "hit", "popular", "most", "what", "is", "can", "you", "the", "your", "favorite", "?"]
+                    "hit", "popular", "most", "what", "is", "can", "you", "the", "your", "favorite"]
 
     # Split the input into words and remove common words
     artist_name_words = [word for word in input.split() if word.lower() not in remove_words]
@@ -31,7 +34,6 @@ def extract_artist_name_and_type(input):
         request_type = "song"
 
     return artist_name, request_type
-
 
 def get_latest_song_by_artist(artist_name):
     album_response = requests.get(ITUNES_ENDPOINT.format(artist_name, 100, "album"))
