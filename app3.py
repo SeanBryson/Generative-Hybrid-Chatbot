@@ -5,9 +5,6 @@ import requests
 import json
 
 ITUNES_ENDPOINT = "https://itunes.apple.com/search?term={}&limit={}&entity={}"
-openai.organization = "org-MYzdbZoWTu1PpVARD32T829L"
-file = open('D:\Python_Workspace\Building a Chatbot.txt')
-openai.api_key = file.readline()
 
 def extract_artist_name(input):
     if "by" in input:
@@ -37,15 +34,6 @@ def get_latest_song_by_artist(artist_name):
     latest_song = sorted(filtered_songs, key=lambda x: x['releaseDate'], reverse=True)[0]
     return latest_song
 
-def get_song_suggestions(artist_name, song_name):
-    prompt = f"I just listened to '{song_name}' by {artist_name}. What other songs would you recommend?"
-    response = openai.Completion.create(
-        model="gpt-3.5-turbo",
-        prompt=prompt,
-        max_tokens=150
-    )
-    return response.choices[0].text.strip()
-
 def chatbot(input):
     if any(word in input for word in ["song", "track", "music"]):
         artist_name = extract_artist_name(input)
@@ -53,8 +41,7 @@ def chatbot(input):
         if latest_song:
             track_name = latest_song['trackName']
             artist_name = latest_song['artistName']
-            song_suggestions = get_song_suggestions(artist_name, track_name)
-            reply = f"The latest song by {artist_name} from their most recent album is '{track_name}'. You might also like: {song_suggestions}"
+            reply = f"The latest song by {artist_name} from their most recent album is '{track_name}'."
         else:
             reply = "Sorry, I couldn't find any songs matching your query."
     else:
