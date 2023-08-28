@@ -133,7 +133,7 @@ def chatbot(input):
             song_suggestions = get_song_suggestions(artist_name, track_name)
             reply = f"The {song_type} song by {artist_name} is '{track_name}'. {song_suggestions}"
         else:
-            reply = refined_intent
+            reply = refined_intent # replaces Sorry message, better to present something from the model
     else:  # request_type == "album"
         if "latest" in input:
             album = get_latest_album_by_artist(encoded_artist_name)
@@ -146,7 +146,7 @@ def chatbot(input):
             album_response = requests.get(ITUNES_ENDPOINT.format(encoded_artist_name, 10, "album"))
             album_data = album_response.json()
             if not album_data['results']:
-                return refined_intent
+                return refined_intent # replaces Sorry message, better to present something from the model
             album = random.choice(album_data['results'])
             justification = get_favorite_album_justification(artist_name, album['collectionName'])
             return f"One of the best albums by {artist_name} is '{album['collectionName']}'. {justification}"
@@ -156,7 +156,7 @@ def chatbot(input):
             artist_name = album['artistName']
             reply = f"The {album_type} album by {artist_name} is '{album_name}'."
         else:
-            reply = refined_intent
+            reply = refined_intent # replaces Sorry message, better to present something from the model
 
     return reply
 
