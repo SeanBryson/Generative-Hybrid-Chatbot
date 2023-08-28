@@ -59,7 +59,7 @@ def chatbot(input):
             else:
                 reply = f"One of the most popular songs by {artist_name} is '{track_name}'."
         else:
-            reply = f"Sorry, I couldn't find any songs matching your query. However, {refined_intent}"
+            reply = f"{refined_intent} I couldn't find any songs matching your query using the iTunes API so I hope this helps."
     else:
         reply = refined_intent
 
