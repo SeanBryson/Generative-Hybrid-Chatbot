@@ -22,46 +22,46 @@ def get_song_intent(input):
     messages.append({"role": "assistant", "content": refined_intent})
     return refined_intent
 
-def extract_artist_name(input):
-    if "by" in input:
-        artist_name = input.split("by")[1].strip()
-    elif "latest" in input and "song" in input:
-        artist_name = input.split("latest")[1].split("song")[0].strip()
+def extract_artist_name(refined_intent):
+    if "by" in refined_intent:
+        artist_name = refined_intent.split("by")[1].strip()
     else:
-        artist_name = input
+        artist_name = refined_intent
     return artist_name
 
-def get_latest_song_by_artist(artist_name):
-    album_response = requests.get(ITUNES_ENDPOINT.format(artist_name, 100, "album"))
-    album_data = album_response.json()
-    filtered_albums = [album for album in album_data['results'] if album['artistName'].lower() == artist_name.lower()]
-    if not filtered_albums:
-        return None
-
-    latest_album = sorted(filtered_albums, key=lambda x: x['releaseDate'], reverse=True)[0]
-    latest_album_name = latest_album['collectionName']
-
-    song_response = requests.get(ITUNES_ENDPOINT.format(latest_album_name, 100, "song"))
+def get_song_by_artist(artist_name, latest=True):
+    song_response = requests.get(ITUNES_ENDPOINT.format(artist_name, 100, "song"))
     song_data = song_response.json()
     filtered_songs = [song for song in song_data['results'] if song['artistName'].lower() == artist_name.lower()]
     if not filtered_songs:
         return None
 
-    latest_song = sorted(filtered_songs, key=lambda x: x['releaseDate'], reverse=True)[0]
-    return latest_song
+    if latest:
+        song = sorted(filtered_songs, key=lambda x: x['releaseDate'], reverse=True)[0]
+    else:
+        song = sorted(filtered_songs, key=lambda x: x['trackPrice'], reverse=True)[0]
+    return song
 
 def chatbot(input):
-    if any(word in input for word in ["song", "track", "music"]):
-        artist_name = extract_artist_name(input)
-        latest_song = get_latest_song_by_artist(artist_name)
-        if latest_song:
-            track_name = latest_song['trackName']
-            artist_name = latest_song['artistName']
-            reply = f"The latest song by {artist_name} from their most recent album is '{track_name}'."
+    refined_intent = get_song_intent(input)
+    if any(word in refined_intent for word in ["song", "track", "music"]):
+        artist_name = extract_artist_name(refined_intent)
+        if "latest" in refined_intent:
+            song = get_song_by_artist(artist_name, latest=True)
         else:
-            reply = "Sorry, I couldn't find any songs matching your query."
+            song = get_song_by_artist(artist_name, latest=False)
+        
+        if song:
+            track_name = song['trackName']
+            artist_name = song['artistName']
+            if "latest" in refined_intent:
+                reply = f"The latest song by {artist_name} is '{track_name}'."
+            else:
+                reply = f"One of the most popular songs by {artist_name} is '{track_name}'."
+        else:
+            reply = f"Sorry, I couldn't find any songs matching your query. However, {refined_intent}"
     else:
-        reply = get_song_intent(input)
+        reply = refined_intent
 
     return reply
 
@@ -71,4 +71,3 @@ outputs = gr.outputs.Textbox(label="Reply")
 gr.Interface(fn=chatbot, inputs=inputs, outputs=outputs, title="AI Chatbot",
              description="Ask anything you want",
              theme="compact").launch(share=True)
-
