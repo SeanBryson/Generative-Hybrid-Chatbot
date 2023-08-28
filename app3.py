@@ -1,23 +1,30 @@
 # iTunes - Music Version 
-# only works with prompts like "find me a song" or "radiohead song"
 import openai
 import gradio as gr
 import requests
 import json
 
-ITUNES_ENDPOINT = "https://itunes.apple.com/search?term={}&limit=1&entity=song"
+ITUNES_ENDPOINT = "https://itunes.apple.com/search?term={}&limit=5&entity=song"
 openai.organization = "org-MYzdbZoWTu1PpVARD32T829L"
 file = open('D:\Python_Workspace\Building a Chatbot.txt')
 openai.api_key = file.readline()
-print(openai.api_key)
 
 messages = [
     {"role": "system", "content": "You are a helpful and kind AI Assistant."},
 ]
 
+def get_song_intent(input):
+    messages.append({"role": "user", "content": input})
+    chat = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo", messages=messages
+    )
+    intent = chat.choices[0].message.content
+    messages.append({"role": "assistant", "content": intent})
+    return intent
+
 def chatbot(input):
     if "song" in input or "track" in input or "music" in input:
-        search_term = input.replace("song", "").replace("track", "").replace("music", "").strip()
+        search_term = get_song_intent(input)
         response = requests.get(ITUNES_ENDPOINT.format(search_term))
         data = response.json()
 
@@ -29,14 +36,7 @@ def chatbot(input):
         else:
             reply = "Sorry, I couldn't find any songs matching your query."
     else:
-        if input:
-            messages.append({"role": "user", "content": input})
-            chat = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo", messages=messages
-            )
-            reply = chat.choices[0].message.content
-            messages.append({"role": "assistant", "content": reply})
-            return reply
+        reply = get_song_intent(input)
 
     return reply
 
