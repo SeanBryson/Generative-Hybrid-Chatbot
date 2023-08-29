@@ -23,7 +23,7 @@ def generate_response(prompt):
     input_ids = tokenizer.encode(prompt, return_tensors='pt')
     
     # Adjust temperature and top_p here
-    output = model.generate(input_ids, max_length=200, num_return_sequences=1, 
+    output = model.generate(input_ids, max_length=50, num_return_sequences=1, 
                             no_repeat_ngram_size=2, early_stopping=True, 
                             temperature=0.5,  # Adjust as needed
                             top_p=0.9)        # Adjust as needed
