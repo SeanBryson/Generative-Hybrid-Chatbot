@@ -26,9 +26,7 @@ def generate_response(prompt):
     input_ids = tokenizer.encode(prompt, return_tensors='pt')
     output = model.generate(input_ids, max_length=200, num_return_sequences=1, no_repeat_ngram_size=2, early_stopping=True)
     response = tokenizer.decode(output[0], skip_special_tokens=True)
-    response = generate_response(prompt)
     response = clean_output(response)
-
     return response
 
 
