@@ -20,11 +20,14 @@ def clean_output(text):
     return text.strip()
 
 def generate_response(prompt):
-    """
-    Generate a response using the GPT-2 model.
-    """
     input_ids = tokenizer.encode(prompt, return_tensors='pt')
-    output = model.generate(input_ids, max_length=200, num_return_sequences=1, no_repeat_ngram_size=2, early_stopping=True)
+    
+    # Adjust temperature and top_p here
+    output = model.generate(input_ids, max_length=200, num_return_sequences=1, 
+                            no_repeat_ngram_size=2, early_stopping=True, 
+                            temperature=0.8,  # Adjust as needed
+                            top_p=0.9)        # Adjust as needed
+    
     response = tokenizer.decode(output[0], skip_special_tokens=True)
     response = clean_output(response)
     return response
