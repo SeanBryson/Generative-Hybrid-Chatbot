@@ -19,26 +19,28 @@ def clean_output(text):
     
     return text.strip()
 
-def generate_response(prompt):
+def generate_response(prompt, temperature, top_p):
     input_ids = tokenizer.encode(prompt, return_tensors='pt')
     
-    # Adjust temperature and top_p here
-    output = model.generate(input_ids, max_length=50, num_return_sequences=1, 
-                            no_repeat_ngram_size=2, early_stopping=True, 
-                            temperature=0.5,  # Adjust as needed
-                            top_p=0.9)        # Adjust as needed
+    output = model.generate(input_ids, max_length=200, num_return_sequences=1, 
+                            no_repeat_ngram_size=4, early_stopping=True, 
+                            temperature=temperature,  # Use the provided value
+                            top_p=top_p)              # Use the provided value
     
     response = tokenizer.decode(output[0], skip_special_tokens=True)
     response = clean_output(response)
     return response
 
-
 # Define Gradio interface
-def chat_interface(prompt):
-    return generate_response(prompt)
+def chat_interface(prompt, temperature, top_p):
+    return generate_response(prompt, temperature, top_p)
 
 # Gradio components
-inputs = gr.inputs.Textbox(lines=7, label="Your Prompt")
+inputs = [
+    gr.inputs.Textbox(lines=7, label="Your Prompt"),
+    gr.inputs.Slider(minimum=0.1, maximum=1.0, step=0.1, default=0.5, label="Temperature"),
+    gr.inputs.Slider(minimum=0.1, maximum=1.0, step=0.1, default=0.9, label="Top P")
+]
 outputs = gr.outputs.Textbox(label="GPT-2 Response")
 
 # Launch the Gradio interface
