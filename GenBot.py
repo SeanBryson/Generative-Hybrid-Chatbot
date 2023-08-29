@@ -25,7 +25,7 @@ def generate_response(prompt):
     # Adjust temperature and top_p here
     output = model.generate(input_ids, max_length=200, num_return_sequences=1, 
                             no_repeat_ngram_size=2, early_stopping=True, 
-                            temperature=0.8,  # Adjust as needed
+                            temperature=0.5,  # Adjust as needed
                             top_p=0.9)        # Adjust as needed
     
     response = tokenizer.decode(output[0], skip_special_tokens=True)
