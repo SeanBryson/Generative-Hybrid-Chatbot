@@ -36,26 +36,41 @@ def extract_artist_name_and_type(input):
     return artist_name, request_type
 
 def get_latest_song_by_artist(artist_name):
+    # Fetch the latest albums by the artist from the iTunes API
     album_response = requests.get(ITUNES_ENDPOINT.format(artist_name, 100, "album"))
     album_data = album_response.json()
+    
+    # Filter albums to only include those by the specified artist
     filtered_albums = [album for album in album_data['results'] if album['artistName'].lower() == artist_name.lower()]
+    
+    # If no albums are found, return None
     if not filtered_albums:
         return None
 
+    # Sort the albums by release date and get the latest one
     latest_album = sorted(filtered_albums, key=lambda x: x['releaseDate'], reverse=True)[0]
     latest_album_name = latest_album['collectionName']
 
+    # Fetch songs from the latest album
     song_response = requests.get(ITUNES_ENDPOINT.format(latest_album_name, 100, "song"))
     song_data = song_response.json()
+    
+    # Filter songs to only include those by the specified artist
     filtered_songs = [song for song in song_data['results'] if song['artistName'].lower() == artist_name.lower()]
+    
+    # If no songs are found, return None
     if not filtered_songs:
         return None
 
+    # Sort the songs by release date and get the latest one
     latest_song = sorted(filtered_songs, key=lambda x: x['releaseDate'], reverse=True)[0]
     return latest_song
 
 def get_song_suggestions(artist_name, song_name):
+    # Construct a prompt for the OpenAI model
     prompt = f"I just listened to '{song_name}' by {artist_name}. What other songs would you recommend?"
+    
+    # Get song recommendations from the OpenAI model
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
@@ -66,45 +81,66 @@ def get_song_suggestions(artist_name, song_name):
     return response.choices[0].message['content'].strip()
 
 def get_most_popular_song_by_artist(artist_name):
+    # Fetch songs by the artist from the iTunes API
     song_response = requests.get(ITUNES_ENDPOINT.format(artist_name, 100, "song"))
     song_data = song_response.json()
+    
+    # Filter songs to only include those by the specified artist
     filtered_songs = [song for song in song_data['results'] if song['artistName'].lower() == artist_name.lower()]
+    
+    # If no songs are found, return None
     if not filtered_songs:
         return None
 
-    # Assuming the most popular song is the one with the highest track count (this is a basic heuristic)
+    # Use a heuristic to determine the most popular song (highest track count)
     popular_song = max(filtered_songs, key=lambda x: x.get('trackCount', 0))
     return popular_song
 
 def get_latest_album_by_artist(artist_name):
+    # Fetch the latest albums by the artist from the iTunes API
     album_response = requests.get(ITUNES_ENDPOINT.format(artist_name, 100, "album"))
     album_data = album_response.json()
+    
+    # Filter albums to only include those by the specified artist
     filtered_albums = [album for album in album_data['results'] if album['artistName'].lower() == artist_name.lower()]
+    
+    # If no albums are found, return None
     if not filtered_albums:
         return None
 
+    # Sort the albums by release date and get the latest one
     latest_album = sorted(filtered_albums, key=lambda x: x['releaseDate'], reverse=True)[0]
     return latest_album
 
 def get_song_intent(input):
+    # Append the user's input to the messages list
     messages.append({"role": "user", "content": input})
+    
+    # Get the refined intent from the OpenAI model
     chat = openai.ChatCompletion.create(
         model="gpt-3.5-turbo", messages=messages
     )
     refined_intent = chat.choices[0].message.content
+    
+    # Append the model's response to the messages list
     messages.append({"role": "assistant", "content": refined_intent})
     return refined_intent
 
 def get_most_popular_album_by_artist(artist_name):
-    # For simplicity, we'll assume the first album returned is the most popular, but this might not always be the case.
+    # Fetch the most popular album by the artist from the iTunes API (assuming the first album returned is the most popular)
     album_response = requests.get(ITUNES_ENDPOINT.format(artist_name, 1, "album"))
     album_data = album_response.json()
+    
+    # If there are results, return the first album
     if album_data['results']:
         return album_data['results'][0]
     return None
 
 def get_favorite_album_justification(artist_name, album_name):
+    # Construct a prompt for the OpenAI model
     prompt = f"Why is '{album_name}' by {artist_name} considered one of the best albums?"
+    
+    # Get insights about the album from the OpenAI model
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
@@ -113,6 +149,7 @@ def get_favorite_album_justification(artist_name, album_name):
         ]
     )
     return response.choices[0].message['content'].strip()
+
 
 def chatbot(input):
     # Get the refined intent from the model based on the user input
@@ -179,9 +216,20 @@ def chatbot(input):
     return reply
 
 
+# Define the input interface for the Gradio UI
+# This creates a textbox with 7 lines and a label "Chat with AI"
 inputs = gr.inputs.Textbox(lines=7, label="Chat with AI")
+
+# Define the output interface for the Gradio UI
+# This creates a textbox to display the chatbot's reply with a label "Reply"
 outputs = gr.outputs.Textbox(label="Reply")
 
+# Create the Gradio Interface
+# - `fn=chatbot`: This specifies that the chatbot function defined earlier will be used to process the input and generate the output.
+# - `inputs=inputs` and `outputs=outputs`: These specify the input and output interfaces we defined above.
+# - `title`, `description`, and `theme` are used to customize the appearance of the Gradio UI.
+# - `launch(share=True)`: This launches the Gradio UI and makes it accessible via a public link.
 gr.Interface(fn=chatbot, inputs=inputs, outputs=outputs, title="AI Chatbot",
              description="Ask anything you want",
              theme="compact").launch(share=True)
+
