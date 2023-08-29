@@ -115,50 +115,69 @@ def get_favorite_album_justification(artist_name, album_name):
     return response.choices[0].message['content'].strip()
 
 def chatbot(input):
+    # Get the refined intent from the model based on the user input
     refined_intent = get_song_intent(input)
-    artist_name, request_type = extract_artist_name_and_type(input)
-    encoded_artist_name = requests.utils.quote(artist_name)  # URL encode the artist's name
     
+    # Extract the artist's name and determine if the user is asking for a song or an album
+    artist_name, request_type = extract_artist_name_and_type(input)
+    
+    # URL encode the artist's name to make it suitable for the API request
+    encoded_artist_name = requests.utils.quote(artist_name)
+    
+    # Check if the user is asking for a song
     if request_type == "song":
+        # If the user wants the latest song
         if "latest" in input:
             song = get_latest_song_by_artist(encoded_artist_name)
             song_type = "latest"
+        # Otherwise, assume they want the most popular song
         else:
             song = get_most_popular_song_by_artist(encoded_artist_name)
             song_type = "most popular"
         
+        # If a song is found
         if song:
             track_name = song['trackName']
             artist_name = song['artistName']
+            # Get song suggestions based on the found song
             song_suggestions = get_song_suggestions(artist_name, track_name)
             reply = f"The {song_type} song by {artist_name} is '{track_name}'. {song_suggestions}"
+        # If no song is found, return the refined intent from the model
         else:
-            reply = refined_intent # replaces Sorry message, better to present something from the model
-    else:  # request_type == "album"
+            reply = refined_intent
+    # If the user is asking for an album
+    else:
+        # If the user wants the latest album
         if "latest" in input:
             album = get_latest_album_by_artist(encoded_artist_name)
             album_type = "latest"
+        # If the user wants the most popular album
         elif "popular" in input or "most popular" in input:
             album = get_most_popular_album_by_artist(encoded_artist_name)
             album_type = "most popular"
+        # If the user asks for a favorite or best album
         elif "favorite" in input or "best" in input:
             # Fetch a list of albums and select a random one as the favorite
             album_response = requests.get(ITUNES_ENDPOINT.format(encoded_artist_name, 10, "album"))
             album_data = album_response.json()
             if not album_data['results']:
-                return refined_intent # replaces Sorry message, better to present something from the model
+                return refined_intent
             album = random.choice(album_data['results'])
+            # Get a justification for why this album is considered one of the best
             justification = get_favorite_album_justification(artist_name, album['collectionName'])
             return f"One of the best albums by {artist_name} is '{album['collectionName']}'. {justification}"
 
+        # If an album is found
         if album:
             album_name = album['collectionName']
             artist_name = album['artistName']
             reply = f"The {album_type} album by {artist_name} is '{album_name}'."
+        # If no album is found, return the refined intent from the model
         else:
-            reply = refined_intent # replaces Sorry message, better to present something from the model
+            reply = refined_intent
 
     return reply
+
 
 inputs = gr.inputs.Textbox(lines=7, label="Chat with AI")
 outputs = gr.outputs.Textbox(label="Reply")
