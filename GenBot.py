@@ -35,6 +35,285 @@ def generate_response(prompt, temperature, top_p):
 def chat_interface(prompt, temperature, top_p):
     return generate_response(prompt, temperature, top_p)
 
+
+#########################################################################################################
+#########################################################################################################
+#########################################################################################################
+# Part 2: Fine tuning the model
+
+#Part of fine tuning is cleaning data. For our news summarization bot, we will have to have both news text, and the human generated summaries
+#This will teach the model how to summarize
+
+#We do not have time to generate summarize, so we will use a pre made data set found here: https://www.kaggle.com/datasets/gowrishankarp/newspaper-text-summarization-cnn-dailymail
+
+#We can demo what the cleaning process would be like using the below data set and demo
+#In a seperate file, clean the news articles dataset from kaggle: https://www.kaggle.com/datasets/snapcrack/all-the-news?resource=download&select=articles1.csv
+#We are only using article1.csv from the kaggle data set
+#Cleaning process can be found in DataCleaning.ipynb 
+
+########################################BASE LINE################################################
+
+#Step 1: We need to observe how the model does providing summaries of a text without fine tuning
+#Here we are using the first entry in the training data to see how the model does.
+import pandas as pd
+def baseline_summary():
+    #read the CSV
+    valid_data = pd.read_csv('C:\Work\Python\Transformer\ChatbotUpdate\sample_test.csv')
+
+    #Get the content of the first article in the data frame
+    content = valid_data['article'][0]
+
+    # Tokenize input and generate baseline summary
+    input_ids = tokenizer.encode(content, return_tensors="pt")
+    baseline_output = model.generate(input_ids, max_length=500, num_return_sequences=1)
+
+    # Decode and print the baseline summary
+    baseline_summary = tokenizer.decode(baseline_output[0], skip_special_tokens=True)
+    return baseline_summary
+'''
+    #If the content is too long, we must break it into 3 parts, then summarize each part.
+
+    # Step 1: Split the content into three parts
+    #content = articles['content'][0]  # Use the content of the first article
+    total_length = len(content)
+    part_length = total_length // 3
+
+    part1 = content[:part_length]
+    part2 = content[part_length:2*part_length]
+    part3 = content[2*part_length:]
+
+    # Step 2: Generate summaries for each part
+    
+    pre_prompt = "Please summarize the following text:"
+
+    input_ids1 = tokenizer.encode(pre_prompt + " " + part1, return_tensors="pt")
+    input_ids2 = tokenizer.encode(pre_prompt + " " + part2, return_tensors="pt")
+    input_ids3 = tokenizer.encode(pre_prompt + " " + part3, return_tensors="pt")
+
+    summary1 = model.generate(input_ids1, max_length=100, num_return_sequences=1)
+    summary2 = model.generate(input_ids2, max_length=100, num_return_sequences=1)
+    summary3 = model.generate(input_ids3, max_length=100, num_return_sequences=1)
+
+    # Step 3: Decode and combine summaries
+    summary_text1 = tokenizer.decode(summary1[0], skip_special_tokens=True)
+    summary_text2 = tokenizer.decode(summary2[0], skip_special_tokens=True)
+    summary_text3 = tokenizer.decode(summary3[0], skip_special_tokens=True)
+
+    combined_summary = summary_text1 + " " + summary_text2 + " " + summary_text3
+    print("Combined Summary:", combined_summary)
+
+'''     
+    #At this point the model does not perform well. so lets fine tune now
+
+#print(baseline_summary())
+
+
+########################################FINE TUNE################################################
+from torch.utils.data import Dataset, DataLoader
+from transformers import AdamW
+
+class SummarizationDataset(Dataset):
+    def __init__(self, articles, summaries):
+        self.articles = articles
+        self.summaries = summaries
+
+    def __len__(self):
+        return len(self.articles)
+
+    def __getitem__(self, idx):
+        return self.articles[idx], self.summaries[idx]  # Return input_ids and labels directly
+
+from rouge_score import rouge_scorer
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+
+def calculate_rouge(generated_summaries, reference_summaries):
+    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+    rouge_scores = []
+
+    for gen_summary, ref_summary in zip(generated_summaries, reference_summaries):
+        scores = scorer.score(ref_summary, gen_summary)
+        rouge_scores.append(scores)
+
+    avg_rouge_scores = {
+        'rouge1': sum(score['rouge1'].fmeasure for score in rouge_scores) / len(rouge_scores),
+        'rouge2': sum(score['rouge2'].fmeasure for score in rouge_scores) / len(rouge_scores),
+        'rougeL': sum(score['rougeL'].fmeasure for score in rouge_scores) / len(rouge_scores)
+    }
+
+    return avg_rouge_scores
+
+def calculate_bleu(generated_summaries, reference_summaries):
+    smoothie = SmoothingFunction().method4  # Choose a smoothing method
+    bleu_scores = []
+
+    for gen_summary, ref_summary in zip(generated_summaries, reference_summaries):
+        gen_tokens = gen_summary.split()
+        ref_tokens = ref_summary.split()
+        bleu_score = sentence_bleu([ref_tokens], gen_tokens, smoothing_function=smoothie)
+        bleu_scores.append(bleu_score)
+
+    avg_bleu_score = sum(bleu_scores) / len(bleu_scores)
+    return avg_bleu_score
+
+
+def batch_tokens(data):    
+    # Tokenize in batches
+    batch_size = 3
+    batched_inputs = [data[i:i+batch_size] for i in range(0, len(data), batch_size)]
+
+    tokenized_batches = []
+    for batch in batched_inputs:
+        tokenized_batch = tokenizer.batch_encode_plus(batch, return_tensors='pt', padding=True, truncation=True)
+        tokenized_batches.append(tokenized_batch)
+    return tokenized_batches
+
+import timeit
+start = timeit.timeit()
+def fine_tuned_summary():
+    print('entered fine tuning function')
+    special_tokens = {"bos_token": "<bos>", "eos_token": "<eos>", "pad_token": "<pad>"}
+    tokenizer.add_special_tokens(special_tokens)
+
+    # Define the loss function (e.g., cross-entropy loss)
+    loss_fn = torch.nn.CrossEntropyLoss()
+
+    # Define hyperparameters
+    learning_rate = 1e-4
+    num_epochs = 3
+    batch_size = 1  # Adjust as needed len(train_dataset)
+
+
+    test_data = pd.read_csv('C:\Work\Python\Transformer\ChatbotUpdate\sample_test.csv')
+    train_data = pd.read_csv('C:\Work\Python\Transformer\ChatbotUpdate\sample_training.csv')
+    #valid_data = pd.read_csv('./cnn_dailymail/validation.csv')
+    max_article_length = 1000
+    max_summary_length = 300
+    # Tokenize articles and summaries
+    print('data loaded')
+    #tokenized_articles = batch_tokens( train_data['article'])
+    #tokenized_summaries = batch_tokens(train_data['highlights'])
+    print('articles tokenized')
+    #tokenized_summaries = batch_tokens(train_data['highlights'])
+
+    tokenized_articles = [tokenizer.encode(article, max_length=max_article_length, truncation=True) for article in train_data['article']]
+    tokenized_summaries = [tokenizer.encode(summary, max_length=max_summary_length, truncation=True) for summary in train_data['highlights']]
+
+
+    #token_lengths = [len(tokens) for tokens in tokenized_articles]
+    #print("Max train data set articles :", tokenized_articles)
+    #print("Max train data set summaires :", tokenized_summaries)
+    #print("Min token length:", min(token_lengths))
+
+    # Create dataset instances
+    train_dataset = SummarizationDataset(tokenized_articles, tokenized_summaries)
+    
+    #for item in train_dataset:
+    #    print(item)
+    
+    #print(train_dataset)
+    # Create data loaders
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=None)
+
+    # Define optimizer
+    optimizer = AdamW(model.parameters(), lr=learning_rate)
+    print("starting training")
+    i=0
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Fine-tuning loop
+    for epoch in range(num_epochs):
+        print(f"This is epoch #{i}")
+        model.train()
+        total_loss = 0
+
+        for batch in train_loader:
+            print(batch)
+            input_ids = batch[0] # Access input_ids using the key 'input_ids'
+            labels = batch[1]       # Access labels using the key 'labels'
+            print(input_ids)
+            print(labels)
+            # Create attention mask
+            attention_mask = (input_ids != tokenizer.pad_token_id).float()
+
+            # Forward pass
+            outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
+                   
+            # Forward pass
+            outputs = model(input_ids, labels=labels)
+            loss = outputs.loss
+
+            # Backpropagation and optimization
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            total_loss += loss.item()
+
+        # Print average loss for the epoch
+        avg_loss = total_loss / len(train_loader)
+        print(f"Epoch {epoch+1}/{num_epochs}, Avg Loss: {avg_loss:.4f}")
+
+    # Save the fine-tuned model
+    model.save_pretrained('./fine_tuned_model')
+    print('training complete')
+
+    #######TESTING######
+    # Tokenize articles and summaries
+    test_tokenized_articles = [tokenizer.encode(article, max_length=max_article_length, truncation=True) for article in test_data['article']]
+    test_tokenized_summaries = [tokenizer.encode(summary, max_length=max_summary_length, truncation=True) for summary in test_data['highlights']]
+
+    # Create dataset instances
+    test_dataset = SummarizationDataset(test_tokenized_articles, test_tokenized_summaries)
+
+    # Create data loaders
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+
+
+    #Test results
+    model.eval()  # Set the model to evaluation mode
+    print('Starting Testing')
+    with torch.no_grad():
+        total_rouge_score = 0
+        total_bleu_score = 0
+        num_batches = 0
+        # Determine if a GPU is available, otherwise use CPU
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        i=0
+        for batch in test_loader:
+            print(f'This is test #{i}')
+            input_ids = batch[0][0].to(device)  # Access input_ids using the key 'input_ids'
+            labels = batch[0][1].to(device)
+
+            # Generate summaries using the model
+            generated_ids = model.generate(input_ids)
+
+            # Convert generated IDs to text
+            generated_summaries = [tokenizer.decode(gen_ids, skip_special_tokens=True) for gen_ids in generated_ids]
+
+            # Calculate ROUGE and BLEU scores
+            rouge_score = calculate_rouge(generated_summaries, labels)
+            bleu_score = calculate_bleu(generated_summaries, labels)
+
+            total_rouge_score += rouge_score
+            total_bleu_score += bleu_score
+            num_batches += 1
+
+    # Calculate average metrics
+    avg_rouge_score = total_rouge_score / num_batches
+    avg_bleu_score = total_bleu_score / num_batches
+
+    print("Average ROUGE Score:", avg_rouge_score)
+    print("Average BLEU Score:", avg_bleu_score)
+    
+end= timeit.timeit()
+fine_tuned_summary()
+print(end-start)
+# End of Part 2 of demo
+#########################################################################################################
+#########################################################################################################
+#########################################################################################################
+
+
 # Gradio components
 inputs = [
     gr.inputs.Textbox(lines=7, label="Your Prompt"),
