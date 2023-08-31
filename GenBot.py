@@ -140,7 +140,9 @@ def calculate_rouge(generated_summaries, reference_summaries):
         'rougeL': sum(score['rougeL'].fmeasure for score in rouge_scores) / len(rouge_scores)
     }
 
-    return avg_rouge_scores
+    avg_rouge_score = sum(avg_rouge_scores.values()) / len(avg_rouge_scores)  # Calculate the average of all Rouge scores
+    return avg_rouge_score  # Return the average Rouge score as a single value
+
 
 def calculate_bleu(generated_summaries, reference_summaries):
     smoothie = SmoothingFunction().method4  # Choose a smoothing method
@@ -156,26 +158,11 @@ def calculate_bleu(generated_summaries, reference_summaries):
     return avg_bleu_score
 
 
-def batch_tokens(data):    
-    # Tokenize in batches
-    batch_size = 3
-    batched_inputs = [data[i:i+batch_size] for i in range(0, len(data), batch_size)]
 
-    tokenized_batches = []
-    for batch in batched_inputs:
-        tokenized_batch = tokenizer.batch_encode_plus(batch, return_tensors='pt', padding=True, truncation=True)
-        tokenized_batches.append(tokenized_batch)
-    return tokenized_batches
-
-import timeit
-start = timeit.timeit()
 def fine_tuned_summary():
     print('entered fine tuning function')
     special_tokens = {"bos_token": "<bos>", "eos_token": "<eos>", "pad_token": "<pad>"}
     tokenizer.add_special_tokens(special_tokens)
-
-    # Define the loss function (e.g., cross-entropy loss)
-    loss_fn = torch.nn.CrossEntropyLoss()
 
     # Define hyperparameters
     learning_rate = 1e-4
@@ -185,67 +172,51 @@ def fine_tuned_summary():
 
     test_data = pd.read_csv('C:\Work\Python\Transformer\ChatbotUpdate\sample_test.csv')
     train_data = pd.read_csv('C:\Work\Python\Transformer\ChatbotUpdate\sample_training.csv')
-    #valid_data = pd.read_csv('./cnn_dailymail/validation.csv')
+
+    def tokenization_function(data, max_length):
+        input_sequences = [tokenizer.encode(text, max_length=max_length, truncation=True) for text in data]
+        label_sequences = [sequence[1:] for sequence in input_sequences]  # Shift labels by one position
+
+        return input_sequences, label_sequences
+
     max_article_length = 1000
     max_summary_length = 300
-    # Tokenize articles and summaries
-    print('data loaded')
-    #tokenized_articles = batch_tokens( train_data['article'])
-    #tokenized_summaries = batch_tokens(train_data['highlights'])
-    print('articles tokenized')
-    #tokenized_summaries = batch_tokens(train_data['highlights'])
 
-    tokenized_articles = [tokenizer.encode(article, max_length=max_article_length, truncation=True) for article in train_data['article']]
-    tokenized_summaries = [tokenizer.encode(summary, max_length=max_summary_length, truncation=True) for summary in train_data['highlights']]
-
-
-    #token_lengths = [len(tokens) for tokens in tokenized_articles]
-    #print("Max train data set articles :", tokenized_articles)
-    #print("Max train data set summaires :", tokenized_summaries)
-    #print("Min token length:", min(token_lengths))
+    tokenized_articles, tokenized_article_labels = tokenization_function(train_data['article'], max_article_length)
+    tokenized_summaries, tokenized_summary_labels = tokenization_function(train_data['highlights'], max_summary_length)
 
     # Create dataset instances
-    train_dataset = SummarizationDataset(tokenized_articles, tokenized_summaries)
-    
-    #for item in train_dataset:
-    #    print(item)
-    
-    #print(train_dataset)
+    train_dataset = SummarizationDataset(tokenized_articles, tokenized_summary_labels)  # Use tokenized_summary_labels as labels
+
     # Create data loaders
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=None)
 
     # Define optimizer
     optimizer = AdamW(model.parameters(), lr=learning_rate)
-    print("starting training")
-    i=0
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # Fine-tuning loop
     for epoch in range(num_epochs):
-        print(f"This is epoch #{i}")
         model.train()
         total_loss = 0
 
         for batch in train_loader:
-            print(batch)
-            input_ids = batch[0] # Access input_ids using the key 'input_ids'
-            labels = batch[1]       # Access labels using the key 'labels'
-            print(input_ids)
-            print(labels)
+            input_ids = batch[0][0].to(device)  # Access input_ids
+            labels = batch[0][1].to(device)     # Access labels
+
             # Create attention mask
             attention_mask = (input_ids != tokenizer.pad_token_id).float()
 
             # Forward pass
             outputs = model(input_ids, attention_mask=attention_mask, labels=labels)
-                   
-            # Forward pass
-            outputs = model(input_ids, labels=labels)
+
             loss = outputs.loss
 
             # Backpropagation and optimization
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            
+
             total_loss += loss.item()
 
         # Print average loss for the epoch
@@ -254,6 +225,7 @@ def fine_tuned_summary():
 
     # Save the fine-tuned model
     model.save_pretrained('./fine_tuned_model')
+
     print('training complete')
 
     #######TESTING######
@@ -265,49 +237,49 @@ def fine_tuned_summary():
     test_dataset = SummarizationDataset(test_tokenized_articles, test_tokenized_summaries)
 
     # Create data loaders
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, collate_fn=None)
 
 
     #Test results
     model.eval()  # Set the model to evaluation mode
-    print('Starting Testing')
-    with torch.no_grad():
-        total_rouge_score = 0
-        total_bleu_score = 0
-        num_batches = 0
-        # Determine if a GPU is available, otherwise use CPU
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        i=0
-        for batch in test_loader:
-            print(f'This is test #{i}')
-            input_ids = batch[0][0].to(device)  # Access input_ids using the key 'input_ids'
-            labels = batch[0][1].to(device)
+    total_rouge_score = 0
+    total_bleu_score = 0
+    num_examples = len(test_data)
 
-            # Generate summaries using the model
-            generated_ids = model.generate(input_ids)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-            # Convert generated IDs to text
-            generated_summaries = [tokenizer.decode(gen_ids, skip_special_tokens=True) for gen_ids in generated_ids]
+    for i in range(num_examples):
+        print(f'This is test #{i}')
+        article = test_data['article'][i]
+        summary = test_data['highlights'][i]
+        
+        # Tokenize the article
+        input_ids = tokenizer.encode(article, max_length=max_article_length, truncation=True, return_tensors='pt').to(device)
 
-            # Calculate ROUGE and BLEU scores
-            rouge_score = calculate_rouge(generated_summaries, labels)
-            bleu_score = calculate_bleu(generated_summaries, labels)
+        # Generate summaries using the model
+        generated_ids = model.generate(input_ids)
 
-            total_rouge_score += rouge_score
-            total_bleu_score += bleu_score
-            num_batches += 1
+        # Convert generated IDs to text
+        generated_summaries = [tokenizer.decode(gen_ids, skip_special_tokens=True) for gen_ids in generated_ids]
+
+        # Calculate ROUGE and BLEU scores
+        rouge_score = calculate_rouge(generated_summaries, [summary])  # Pass the summary as a list
+        bleu_score = calculate_bleu(generated_summaries, [summary])    # Pass the summary as a list
+
+        total_rouge_score += rouge_score
+        total_bleu_score += bleu_score
 
     # Calculate average metrics
-    avg_rouge_score = total_rouge_score / num_batches
-    avg_bleu_score = total_bleu_score / num_batches
+    avg_rouge_score = total_rouge_score / num_examples
+    avg_bleu_score = total_bleu_score / num_examples
 
     print("Average ROUGE Score:", avg_rouge_score)
     print("Average BLEU Score:", avg_bleu_score)
-    
-end= timeit.timeit()
+
+
 fine_tuned_summary()
-print(end-start)
+
 # End of Part 2 of demo
 #########################################################################################################
 #########################################################################################################
