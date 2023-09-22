@@ -13,6 +13,24 @@ openai.api_key = file.readline()
 messages = [
     {"role": "system", "content": "You are a music suggestion bot with API access to iTunes. Please return at least one song"},
 ]
+
+# Initialize a session dictionary to maintain context
+session_data = {
+    "last_artist": None,
+    "last_song": None,
+    "last_album": None,
+    "interaction_count": 0,
+    "previous_recommendations": []
+}
+
+# Function to reset the session data
+def reset_session():
+    """Reset the session data after a certain number of interactions."""
+    session_data["last_artist"] = None
+    session_data["last_song"] = None
+    session_data["last_album"] = None
+    session_data["interaction_count"] = 0
+
 def extract_artist_name_and_type(input):
     # Remove punctuation from the input
     input = ''.join(ch for ch in input if ch not in string.punctuation)
@@ -152,6 +170,26 @@ def get_favorite_album_justification(artist_name, album_name):
 
 
 def chatbot(input):
+     # Increment interaction count
+    session_data["interaction_count"] += 1
+
+    # If the user has interacted multiple times, consider resetting the session for a fresh start
+    if session_data["interaction_count"] > 5:
+        reset_session()
+
+    # Get the refined intent from the model based on the user input
+    refined_intent = get_song_intent(input)
+
+    # Extract the artist's name and determine if the user is asking for a song or an album
+    artist_name, request_type = extract_artist_name_and_type(input)
+
+    # If the bot couldn't extract the artist's name and it's the first interaction, ask for clarity
+    if not artist_name and session_data["interaction_count"] == 1:
+        return "I'm sorry, I couldn't identify the artist. Can you please specify the artist's name more clearly or provide more details?"
+
+    # If the bot couldn't determine if the user is asking for a song or an album, ask for clarity
+    if not request_type:
+        return f"I understood you're asking about {artist_name}, but are you looking for a song or an album?"
     # Get the refined intent from the model based on the user input
     refined_intent = get_song_intent(input)
     
@@ -212,6 +250,27 @@ def chatbot(input):
         # If no album is found, return the refined intent from the model
         else:
             reply = refined_intent
+        
+        # If the user asks for a general recommendation without specifying an artist or song
+        if "recommend" in input and not artist_name:
+            if session_data["last_artist"]:
+                # Recommend a song from the last known artist
+                song = get_most_popular_song_by_artist(session_data["last_artist"])
+                if song and song['trackName'] not in session_data["previous_recommendations"]:
+                    session_data["previous_recommendations"].append(song['trackName'])
+                    return f"I recommend '{song['trackName']}' by {session_data['last_artist']}."
+                else:
+                    return "I'm sorry, I couldn't find a new recommendation for that artist. Would you like to try another artist?"
+            else:
+                return "Can you specify an artist or genre for the recommendation?"
+
+        # Store the artist, song, or album for context in the next interaction
+        session_data["last_artist"] = artist_name
+        if request_type == "song":
+            session_data["last_song"] = refined_intent  # Assuming the song name is in the refined intent
+        else:
+            session_data["last_album"] = refined_intent  # Assuming the album name is in the refined intent
+
 
     return reply
 
