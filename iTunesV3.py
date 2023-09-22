@@ -6,9 +6,9 @@ import json
 import random
 
 ITUNES_ENDPOINT = "https://itunes.apple.com/search?term={}&limit={}&entity={}"
-openai.organization = "org-MYzdbZoWTu1PpVARD32T829L"
-file = open('D:\Python_Workspace\Building a Chatbot.txt')
-openai.api_key = file.readline()
+openai.organization = "org-MYzdbZoWTu1PpVARD32T829L" # Add your own OpenAI organization key here
+file = open('D:\Python_Workspace\Building a Chatbot.txt') # this method reads your API key from a txt file
+openai.api_key = file.readline() # This line saves your API key, for a less secure method you could manually enter your key here
 
 messages = [
     {"role": "system", "content": "You are a music suggestion bot with API access to iTunes. Please return at least one song"},
